@@ -22,6 +22,9 @@ import urllib2
 import getpass
 import logging
 import sys
+reload(sys)
+sys.setdefaultencoding("utf-8")
+
 import base64
 
 from github import Github
