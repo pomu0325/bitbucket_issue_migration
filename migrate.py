@@ -22,6 +22,7 @@ import urllib2
 import getpass
 import logging
 import sys
+import base64
 
 from github import Github
 from github import GithubException
@@ -49,6 +50,11 @@ def read_arguments():
     parser.add_argument(
         "bitbucket_username",
         help="Your Bitbucket username"
+    )
+
+    parser.add_argument(
+        "bitbucket_password",
+        help="Your Bitbucket password"
     )
 
     parser.add_argument(
@@ -166,7 +172,10 @@ def get_issues(bb_url, start_id):
         )
 
         try:
-            response = urllib2.urlopen(url)
+            request = urllib2.Request(url)
+            base64string = base64.encodestring('%s:%s' % (options.bitbucket_username, options.bitbucket_password)).replace('\n','')
+            request.add_header("Authorization", "Basic %s" % base64string)
+            response = urllib2.urlopen(request)
         except urllib2.HTTPError as ex:
             ex.message = (
                 'Problem trying to connect to bitbucket ({url}): {ex} '
@@ -194,7 +203,10 @@ def get_comments(bb_url, issue):
         bb_url,
         issue['local_id']
     )
-    result = json.loads(urllib2.urlopen(url).read())
+    request = urllib2.Request(url)
+    base64string = base64.encodestring('%s:%s' % (options.bitbucket_username, options.bitbucket_password)).replace('\n','')
+    request.add_header("Authorization", "Basic %s" % base64string)
+    result = json.loads(urllib2.urlopen(request).read())
     ordered = sorted(result, key=lambda comment: comment["utc_created_on"])
 
     comments = []
@@ -266,7 +278,7 @@ def push_issue(gh_username, gh_repository, issue, body):
     github_issue = None
     if not options.dry_run:
         github_issue = github_repo.create_issue(issue['title'], body = body.encode('utf-8'), labels = github_labels)
-    
+
     # Set the status and labels
     if issue.get('status') == 'resolved':
         github_issue.edit(state = 'closed')
@@ -325,7 +337,7 @@ if __name__ == "__main__":
     for issue in sorted(issues, key=lambda issue: issue['local_id']):
         body = format_body(options, issue).encode('utf-8')
         github_issue = push_issue(gh_username, gh_repository, issue, body)
-        
+
         if github_issue:
             comments = get_comments(bb_url, issue)
             add_comments_to_issue(github_issue, comments)
